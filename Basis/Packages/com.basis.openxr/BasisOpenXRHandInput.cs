@@ -44,6 +44,11 @@ public class BasisOpenXRHandInput : BasisInputController
     public UnityEngine.XR.InputDevice Device;
     public const float TriggerDownAmount = 0.5f;
 
+    // Middle-finger pinch (thumb tip to middle tip) stands in for the secondary button on hand-only runtimes (no controller buttons).
+    public const float MiddlePinchPressDistance = 0.02f;
+    public const float MiddlePinchReleaseDistance = 0.035f;
+    private bool _middlePinchActive;
+
     // Cached underlying InputAction refs — avoids InputActionProperty.action property-getter cost per read.
     private InputAction _triggerAction;
     private InputAction _gripAction;
@@ -133,6 +138,10 @@ public class BasisOpenXRHandInput : BasisInputController
         Primary2DAxisTouch.action.AddBinding(devicePath + "/{Primary2DAxisTouch}");
         TriggerTouch.action.AddBinding(devicePath + "/{TriggerTouch}");
         ThumbrestTouch.action.AddBinding(devicePath + "/{ThumbrestTouch}");
+        // XR_EXT_hand_interaction (Android XR etc.) has no trigger/grip: map pinch / aim-activate to Trigger and grasp to Grip.
+        Trigger.action.AddBinding(devicePath + "/pinchValue");
+        Trigger.action.AddBinding(devicePath + "/pointerActivateValue");
+        Grip.action.AddBinding(devicePath + "/graspValue");
 
         DeviceActionPosition = new InputActionProperty(new InputAction($"{devicePath}/devicePosition", InputActionType.Value, $"{devicePath}/devicePosition", expectedControlType: "Vector3"));
         DeviceActionRotation = new InputActionProperty(new InputAction($"{devicePath}/deviceRotation", InputActionType.Value, $"{devicePath}/deviceRotation", expectedControlType: "Quaternion"));
@@ -236,7 +245,7 @@ public class BasisOpenXRHandInput : BasisInputController
         Vector2 secondaryAxis = _secondary2DAxisAction?.ReadValue<Vector2>() ?? Vector2.zero;
         bool secondaryAxisClick = _secondary2DAxisClickAction?.ReadValue<float>() > TriggerDownAmount;
         bool primaryButton = _primaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
-        bool secondaryButton = _secondaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
+        bool secondaryButton = _secondaryButtonAction?.ReadValue<float>() > TriggerDownAmount || _middlePinchActive;
 
         // WMR-era wands have no A/B buttons, which would leave jump/mute and the main menu
         // unreachable. Mirror the SteamVR holographic binding (pad-click east = primary,
@@ -362,6 +371,7 @@ public class BasisOpenXRHandInput : BasisInputController
         {
             bool opticallyTracked = assignedRole == BasisBoneTrackedRole.LeftHand ? subsystem.leftHand.isTracked : subsystem.rightHand.isTracked;
             TrackingHardware = opticallyTracked ? BasisTrackingHardware.Optical : BasisTrackingHardware.InsideOut;
+            UpdateMiddlePinch(assignedRole == BasisBoneTrackedRole.LeftHand ? subsystem.leftHand : subsystem.rightHand);
         }
 
         float playerToAvatar = BasisHeightDriver.DeviceScale;
@@ -456,6 +466,24 @@ public class BasisOpenXRHandInput : BasisInputController
     private readonly Vector2[] handSolved = BasisFingerTipRetarget.NewState();
     private static readonly XRHandJointID[] handBaseJoints = { XRHandJointID.ThumbMetacarpal, XRHandJointID.IndexProximal, XRHandJointID.MiddleProximal, XRHandJointID.RingProximal, XRHandJointID.LittleProximal }, handTipJoints = { XRHandJointID.ThumbTip, XRHandJointID.IndexTip, XRHandJointID.MiddleTip, XRHandJointID.RingTip, XRHandJointID.LittleTip };
     private static readonly Vector3[] handBases = new Vector3[5], handTips = new Vector3[5];
+    private void UpdateMiddlePinch(XRHand hand)
+    {
+        if (!hand.isTracked || !TryJointPosition(hand, XRHandJointID.ThumbTip, out Vector3 thumb) || !TryJointPosition(hand, XRHandJointID.MiddleTip, out Vector3 middle))
+        {
+            _middlePinchActive = false;
+            return;
+        }
+        float middleDistance = Vector3.Distance(thumb, middle);
+        if (_middlePinchActive)
+        {
+            _middlePinchActive = middleDistance <= MiddlePinchReleaseDistance;
+        }
+        else
+        {
+            // Require the middle finger to be the closer one so an index pinch (click) is not read as a menu press.
+            _middlePinchActive = middleDistance < MiddlePinchPressDistance && TryJointPosition(hand, XRHandJointID.IndexTip, out Vector3 index) && Vector3.Distance(thumb, index) > middleDistance;
+        }
+    }
     private static bool TryJointPosition(XRHand hand, XRHandJointID id, out Vector3 position)
     {
         position = default;
