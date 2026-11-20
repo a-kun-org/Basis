@@ -18,7 +18,7 @@ using UnityEngine.XR.OpenXR.Features;
 /// <summary>Android XR (XREAL AURA) 実験ビルド入口。upstream 向けではない。</summary>
 public static class BasisAndroidXrBuild
 {
-    const string OutputPath = @"E:\BasisVR-android-xr\Builds\AndroidXR\BasisVR-AndroidXR.apk";
+    static readonly string OutputPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "Builds", "AndroidXR", "BasisVR-AndroidXR.apk"));
     const string OpenXRLoaderType = "UnityEngine.XR.OpenXR.OpenXRLoader";
 
     // 有効にする機能 (featureId)
