@@ -19,6 +19,7 @@
     "com.unity.toolchain.linux-x86_64-linux": "1.1.1",
     "com.unity.toolchain.win-x86_64-linux": "1.1.1",
     "com.unity.visualeffectgraph": "17.7.0",
+    "com.unity.xr.androidxr-openxr": "1.5.1",
     "com.unity.xr.hands": "1.10.0",
     "com.unity.xr.management": "6.0.0",
     "com.unity.xr.openxr": "1.19.0",
